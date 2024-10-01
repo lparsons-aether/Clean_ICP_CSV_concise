@@ -18,6 +18,7 @@ N1_headers = [
 ]
 
 N2_headers = [
+    "Y 377.433: Final Conc. [ppm]",
     "Ce 446.021: Final Conc. [ppm]",
     "Dy 340.780: Final Conc. [ppm]",
     "Gd 342.247: Final Conc. [ppm]",
