@@ -16,6 +16,21 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
     df = pd.read_csv(filepath_in)
     df_headers = list(df)
 
+    new_df_headers = df_headers.copy()
+    rename_dic = {}
+    for header in new_df_headers:
+        if "(" in header:
+            header_items = header.split(" ")
+            header_items.pop(2)
+            header_items.pop(2)
+            header_items[1] = header_items[1] + ":"
+            new_header = " ".join(header_items)
+            df_headers[df_headers.index(header)] = new_header
+            rename_dic[header] = new_header
+
+    if bool(rename_dic):
+        df.rename(columns=rename_dic, inplace=True)
+
     N1_headers_master = [
         "Li 460.289: Final Conc. [ppm]",
         "Na 589.592: Final Conc. [ppm]",
@@ -33,28 +48,31 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
         "Nd 404.080: Final Conc. [ppm]",
         "Gd 342.247: Final Conc. [ppm]",
         "Tb 370.286: Final Conc. [ppm]",
-        "Dy 340.780: Final Conc. [ppm]"
-    ]
-
-    N1_headers = [
-        "Li 460.289: Final Conc. [ppm]",
-        "Na 589.592: Final Conc. [ppm]",
-        "K 766.490: Final Conc. [ppm]",
-        "Mg 285.213: Final Conc. [ppm]",
-        "Ca 396.847: Final Conc. [ppm]",
-        "Sr 460.722: Final Conc. [ppm]",
-        "Mn 403.076: Final Conc. [ppm]"
-    ]
-
-    N2_headers = [
-        "Y 377.433: Final Conc. [ppm]",
-        "Ce 446.021: Final Conc. [ppm]",
         "Dy 340.780: Final Conc. [ppm]",
-        "Gd 342.247: Final Conc. [ppm]",
-        "Nd 404.080: Final Conc. [ppm]",
-        "Pr 532.276: Final Conc. [ppm]",
-        "Tb 370.286: Final Conc. [ppm]"
+        "Sm 442.434: Final Conc. [ppm]",
+        "ISR [%]",
+        "Time",
+        "Overall Correction Factor",
+        "Li 460.289: LOD [ppb]",
+        "Na 589.592: LOD [ppb]",
+        "K 766.490: LOD [ppb]",
+        "Mg 285.213: LOD [ppb]",
+        "Ca 396.847: LOD [ppb]",
+        "Sr 460.722: LOD [ppb]",
+        "Mn 403.076: LOD [ppb]",
+        "Y 377.433: LOD [ppb]",
+        "Ce 446.021: LOD [ppb]",
+        "Pr 532.276: LOD [ppb]",
+        "Nd 404.080: LOD [ppb]",
+        "Gd 342.247: LOD [ppb]",
+        "Tb 370.286: LOD [ppb]",
+        "Dy 340.780: LOD [ppb]",
+        "Sm 442.434: LOD [ppb]",
     ]
+
+    N1_headers = N1_headers_master.copy()
+
+    N2_headers = N2_headers_master.copy()
 
     missing_headers = []
     N1_missing_headers = []

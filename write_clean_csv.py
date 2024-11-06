@@ -10,7 +10,7 @@ import csv
 
 # Make sure to add a space between the two parts of the csv
 
-# original_csv = "/Users/leoparsons/Downloads/LP004083 Cycle 1_concise.csv" # <-- type your file path here
+# original_csv = "/Users/leoparsons/Desktop/Aether_Biomachines/Experiments/ICP-OES/IX cycling concise icp reports/LP004087 N1 Cycles 1-3_concise.csv" # <-- type your file path here
 # if you want to run this code individually type path above and call function at end of script
 
 ### This code will output the csv with the averages included: ###
@@ -36,6 +36,7 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
         isr_header = ["ISR [%]"]
         time_header = ["Time"]
         LOD_header = []
+        overall_correction_factor_header = ["Overall Correction Factor"]
 
         for item in header:
             if "Final Conc." in item:
@@ -46,7 +47,8 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
             if "LOD" in item:
                 LOD_header.append(item)
 
-        csv_writer.writerow(final_conc_header + std_dev_header[1:] + isr_header + time_header + LOD_header)
+        csv_writer.writerow(final_conc_header + std_dev_header[1:] + isr_header + time_header + LOD_header +
+                            overall_correction_factor_header)
 
         intensity_library = {}
         for library in measurements[2]["value_list"]:
@@ -119,6 +121,19 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
                     list_a.append(value)
             time_library[name] = list_a[1:]
 
+        overall_correction_library = {}
+        for library in measurements[2]["value_list"]:
+            name = library["ion_wavelength_unit_replicate"]
+            list_a = []
+            list_a.append(name)
+            for k in library:
+                if "Overall Correction Factor" in k:
+                    value = library[k]
+                    if library[k] == "n/a":
+                        value = "0"
+                    list_a.append(value)
+            overall_correction_library[name] = list_a[1:]
+
         # csv_writer.writerow("")
 
         std_dev_lib = {}
@@ -147,9 +162,10 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
             line_c = isr_library[key]
             line_d = time_library[key]
             line_e = LOD_library[key]
-            csv_writer.writerow(line_a + line_b + line_c + line_d + line_e)
+            line_f = overall_correction_library[key]
+            csv_writer.writerow(line_a + line_b + line_c + line_d + line_e + line_f)
 
         return filepath_out
 
 
-# write_clean_csv(filepath_in=original_csv, filepath_out="/Users/leoparsons/Downloads/test")
+# write_clean_csv(filepath_in=original_csv, filepath_out="/Users/leoparsons/Downloads")
