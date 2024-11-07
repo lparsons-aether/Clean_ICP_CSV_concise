@@ -99,11 +99,8 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
             list_a = []
             list_a.append(name)
             for key in library:
-                if ": ISR [%]" in key:
-                    isr_key = key
+                if ": ISR [%]" in key and library[key] != "n/a":
                     isr_value = library[key]
-                    if isr_value == "n/a":
-                        isr_value = "0"
                     list_a.append(isr_value)
                     break
             isr_library[name] = list_a[1:]
