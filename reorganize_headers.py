@@ -68,6 +68,12 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
         "Tb 370.286: LOD [ppb]",
         "Dy 340.780: LOD [ppb]",
         "Sm 442.434: LOD [ppb]",
+        # Added backup lines here
+        "Li 460.289: Final Conc. [ppm]",
+        "Na 589.592: Final Conc. [ppm]",
+        "K 766.490: Final Conc. [ppm]",
+        "Mg 285.213: Final Conc. [ppm]",
+        "Ca 396.847: Final Conc. [ppm]",
     ]
 
     N1_headers = N1_headers_master.copy()
