@@ -155,6 +155,14 @@ def read_local_icp_file(icp_file):
                 results['method_standards'][key] = value_list
                 line = next(reader)
             line = next(reader)
+            # Added this bit here so you can cycle through the method standards to populate the concentraiton and ion
+            # columns in reorganize_headers_logic.py
+            method_standards = list(results['method_standards'].keys())
+            clean_method_standards = []
+            for item in method_standards:
+                text_split = item.split(" ")
+                text_join = text_split[0] + " " + text_split[2]
+                clean_method_standards.append(text_join)
 
             if "Internal Standards" not in line[0]:
                 raise Exception("Internal Standards not in file")

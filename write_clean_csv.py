@@ -21,6 +21,7 @@ def write_clean_csv(filepath_in: str, filepath_out: str = None):
     csv as the first argument (filepath_in) and the desired directory to save the clean csv function as the second
     argument (filepath_out). If no filepath_out is provided the function will save the clean icp csv file in the
     directory containing the icp report file."""
+    # with change to csv_organizer_concise, we need to change the indexing for the function call
     results_library = read_local_icp_file(filepath_in)
     measurements = results_library['measurement_list']
     if filepath_out is not None:
