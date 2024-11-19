@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-# clean_csv = "/Users/leoparsons/Downloads/LP004083 Cycle 1_concise_clean.csv"
+# clean_csv = "/Users/leoparsons/Desktop/Aether_Biomachines/Experiments/ICP-OES/IX cycling clean concise icp reports/LP004067-cycle1_concise_wavelength_clean.csv"
 
 
 def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
@@ -15,6 +15,17 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
         filepath_out = filepath_in.split(".")[0] + "_reorganized.csv"
     df = pd.read_csv(filepath_in)
     df_headers = list(df)
+
+    # This generates an uniqe list of ions to the data file
+    ion_headers = []
+    for header in df_headers:
+        header_split = header.split(":")
+        if len(header_split) > 1 and "(" not in header_split[0]:
+            ion_headers.append(header_split[0].rstrip())
+        elif len(header_split) > 1 and "(" in header_split[0]:
+            header_split_2 = header_split[0].split("(")[0]
+            ion_headers.append(header_split_2.rstrip())
+    method_standards = sorted(list(set(ion_headers)))
 
     new_df_headers = df_headers.copy()
     rename_dic = {}
@@ -31,25 +42,25 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
     if bool(rename_dic):
         df.rename(columns=rename_dic, inplace=True)
 
-    N1_headers_master = [
-        "Li 460.289: Final Conc. [ppm]",
-        "Na 589.592: Final Conc. [ppm]",
-        "K 766.490: Final Conc. [ppm]",
-        "Mg 285.213: Final Conc. [ppm]",
-        "Ca 396.847: Final Conc. [ppm]",
-        "Sr 460.722: Final Conc. [ppm]",
-        "Mn 403.076: Final Conc. [ppm]"
-    ]
 
+    N1_headers_master = [
+        "Li Final Conc. [ppm]", "Li wavelength (nm)",
+        "Na Final Conc. [ppm]", "Na wavelength (nm)",
+        "K Final Conc. [ppm]",  "K wavelength (nm)",
+        "Mg Final Conc. [ppm]", "Mg wavelength (nm)",
+        "Ca Final Conc. [ppm]", "Ca wavelength (nm)",
+        "Sr Final Conc. [ppm]", "Sr wavelength (nm)",
+        "Mn Final Conc. [ppm]", "Mn wavelength (nm)"
+    ]
     N2_headers_master = [
-        "Y 377.433: Final Conc. [ppm]",
-        "Ce 446.021: Final Conc. [ppm]",
-        "Pr 532.276: Final Conc. [ppm]",
-        "Nd 404.080: Final Conc. [ppm]",
-        "Gd 342.247: Final Conc. [ppm]",
-        "Tb 370.286: Final Conc. [ppm]",
-        "Dy 340.780: Final Conc. [ppm]",
-        "Sm 442.434: Final Conc. [ppm]",
+        "Y Final Conc. [ppm]", "Y wavelength (nm)",
+        "Ce Final Conc. [ppm]", "Ce wavelength (nm)",
+        "Pr Final Conc. [ppm]", "Pr wavelength (nm)",
+        "Nd Final Conc. [ppm]", "Nd wavelength (nm)",
+        "Gd Final Conc. [ppm]", "Gd wavelength (nm)",
+        "Tb Final Conc. [ppm]", "Tb wavelength (nm)",
+        "Dy Final Conc. [ppm]", "Dy wavelength (nm)",
+        "Sm Final Conc. [ppm]", "Sm wavelength (nm)",
         "ISR [%]",
         "Time",
         "Overall Correction Factor",
@@ -68,12 +79,6 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
         "Tb 370.286: LOD [ppb]",
         "Dy 340.780: LOD [ppb]",
         "Sm 442.434: LOD [ppb]",
-        # Added backup lines here
-        "Li 460.289: Final Conc. [ppm]",
-        "Na 589.592: Final Conc. [ppm]",
-        "K 766.490: Final Conc. [ppm]",
-        "Mg 285.213: Final Conc. [ppm]",
-        "Ca 396.847: Final Conc. [ppm]",
     ]
 
     N1_headers = N1_headers_master.copy()
@@ -115,7 +120,55 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
 
     IX_df = reorganized_df[reorganized_df_headers].set_index("sample_name")
 
+    # This code will fill in the first columns of the df as outlined in N1_headers_master and N2_headers_master with the
+    # data from the first lines list first then will go through the rest of the method standards to fill in any nan
+    # with other available lines. If no line has a signal above the LOD for a sample_name then the cell is left nan.
+    first_lines = ["Li 460.289",
+        "Na 589.592",
+        "K 766.490",
+        "Mg 285.213",
+        "Ca 396.847",
+        "Sr 460.722",
+        "Mn 403.076",
+        "Y 377.433",
+        "Ce 446.021",
+        "Pr 532.276",
+        "Nd 404.080",
+        "Gd 342.247",
+        "Tb 370.286",
+        "Dy 340.780",
+        "Sm 442.434",]
+
+    final_conc = ": Final Conc. [ppm]"
+    lod = ": LOD [ppb]"
+    for line in first_lines:
+        if line in method_standards:
+            IX_df_conc_series = line.split(" ")[0] + " Final Conc. [ppm]"
+            IX_df_wavelength_series = line.split(" ")[0] + " wavelength (nm)"
+            final_conc_test = IX_df[f"{line}{final_conc}"]
+            lod_test = IX_df[f"{line}{lod}"]
+            above_lod = final_conc_test - lod_test / 1000
+            above_lod.clip(0, inplace=True)
+            for sample_name in list(above_lod.index):
+                if np.isnan(IX_df.loc[sample_name, IX_df_conc_series]):
+                    if above_lod.loc[sample_name] > 0:
+                        IX_df.loc[sample_name, IX_df_conc_series] = final_conc_test.loc[sample_name]
+                        IX_df.loc[sample_name, IX_df_wavelength_series] = line
+
+    for method_standard in method_standards:
+        IX_df_conc_series = method_standard.split(" ")[0] + " Final Conc. [ppm]"
+        IX_df_wavelength_series = method_standard.split(" ")[0] + " wavelength (nm)"
+        final_conc_test = IX_df[f"{method_standard}{final_conc}"]
+        lod_test = IX_df[f"{method_standard}{lod}"]
+        above_lod = final_conc_test - lod_test/1000
+        above_lod.clip(0, inplace=True)
+        for sample_name in list(above_lod.index):
+            if np.isnan(IX_df.loc[sample_name, IX_df_conc_series]):
+                if above_lod.loc[sample_name] > 0:
+                    IX_df.loc[sample_name, IX_df_conc_series] = final_conc_test.loc[sample_name]
+                    IX_df.loc[sample_name, IX_df_wavelength_series] = method_standard
+
     return IX_df.to_csv(filepath_out)
 
 
-# reorganize_clean_headers(filepath_in=clean_csv, filepath_out="/Users/leoparsons/Downloads/test")
+# reorganize_clean_headers(filepath_in=clean_csv, filepath_out="/Users/leoparsons/Downloads/")
