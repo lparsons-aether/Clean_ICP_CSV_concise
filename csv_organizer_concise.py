@@ -165,7 +165,7 @@ def read_local_icp_file(icp_file):
                 clean_method_standards.append(text_join)
 
             if "Internal Standards" not in line[0]:
-                raise Exception("Internal Standards not in file")
+                raise Exception(f"Internal Standards not in file {icp_file}")
             results['method_internal_standards'] = {}
             line = next(reader)
             while not (len(line) == 0 or (line[0] == '' and all_equal(line))):

@@ -147,7 +147,7 @@ def reorganize_clean_headers(filepath_in: str, filepath_out: str = None):
             IX_df_wavelength_series = line.split(" ")[0] + " wavelength (nm)"
             final_conc_test = IX_df[f"{line}{final_conc}"]
             lod_test = IX_df[f"{line}{lod}"]
-            above_lod = final_conc_test - lod_test / 1000
+            above_lod = final_conc_test - (3.3*lod_test) / 1000
             above_lod.clip(0, inplace=True)
             for sample_name in list(above_lod.index):
                 if np.isnan(IX_df.loc[sample_name, IX_df_conc_series]):

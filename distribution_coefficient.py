@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 df = pd.read_csv(
-    '/Users/leoparsons/Desktop/Aether_Biomachines/Experiments/ICP-OES/Pretty_IX_Cycling_data_12.20.2024.csv')
+    '/Users/leoparsons/Desktop/Aether_Biomachines/Experiments/ICP-OES/Pretty_IX_Cycling_data_12.20.2024.csv'
+)
 
 filter_columns = [
     'Experiment ID',
@@ -23,27 +24,46 @@ pretty_results = []
 
 cols_to_sub_mean_raffinate = [c for c in df.columns if 'Raffinate (ppm) mean' in c or 'Raffinate (mmol) mean' in c]
 cols_to_sub_mean_eluate = [c for c in df.columns if 'Eluate (ppm) mean' in c or 'Eluate (mmol) mean' in c]
+col_raffinate_error = [c for c in df.columns if 'Raffinate (ppm) std' in c or 'Raffinate (mmol) std' in c]
 
-blanks = df[df['Adsorbent Code'] == "Blank"]
+blanks = df[df['Adsorbent Code'] == 'Blank']
 samples = df[df['Adsorbent Code'] != 'Blank']
+
 
 def get_index_of_col(df, column_name):
     return list(df.columns).index(column_name) + 1  # plus 1 to deal with Index being first value in tuple
 
 
-def calculate_Kd(raff, brine, adsorbent_mass, brine_volume, adsorbent_density=1.5):
-    # Density of Si is 1.5 ml/g
-    Kd = (brine - raff)/(adsorbent_mass/1000/adsorbent_density)/(raff/brine_volume)
-    return Kd
-adsorbent_density = 1.5
+def get_Kd(b: pd.DataFrame, r: pd.DataFrame, m: pd.Series, v: pd.Series, columns_to_operate: list, d=1.5):
+    """b: blank, r: raffinate, m: 'Adsorbent mass (mg)', v: 'Brine volume (ml)', d: density of adsorbent,
+    columns_to_operate: list of column names you want to do operations on returns dataframe with partition coefficients
+    for each ion"""
+    r_copy = r.copy()
+    r[columns_to_operate] = (b[columns_to_operate]-r[columns_to_operate])  # mmol adsorbed
+    adsorbent_volume_mL = np.asarray(m)/1000/np.asarray(d)  # volume of adsorbent
+    r[columns_to_operate] = r[columns_to_operate].apply(lambda x: np.asarray(x) / adsorbent_volume_mL)  # concentration ads
+    r_copy[columns_to_operate] = r_copy[columns_to_operate].apply(lambda x: np.asarray(x) / np.asarray(v))  # concentration raffinate
+    r[columns_to_operate] = r_copy[columns_to_operate].div(r[columns_to_operate])
+    return r
 
-add_me_2 = []
+def get_Kd_error(b: pd.DataFrame, r: pd.DataFrame, columns_to_operate: list, error_to_operate: list):
+    r_copy = r.copy()
+    measurements = r[columns_to_operate].copy()
+    measurements.columns = error_to_operate  # columns need to have the same names for the .div() method
+    r[columns_to_operate] = (b[columns_to_operate] - r[columns_to_operate])
+    r[error_to_operate] = ((b[error_to_operate].mul(b[error_to_operate])) + (r[error_to_operate].mul(r[error_to_operate])))**0.5
+    r[error_to_operate] = (r[error_to_operate].div(measurements))**2
+    r_copy[error_to_operate] = (r_copy[error_to_operate]/measurements)**2
+    return r
+
+Kd_df_list = []
+Kd_df_error_list = []
 for dedup_row in blanks.itertuples():
     blank_index = dedup_row[0]
     add_me = {}
     for filter_col in filter_columns:
         add_me[filter_col] = dedup_row[get_index_of_col(df, filter_col)]
-    subset_me = df[
+    measurements = df[
         (df['Experiment ID'] == add_me['Experiment ID']) &
         (df['Adsorbent Code'] != "Blank") &
         (df['IX Cycle'] == add_me['IX Cycle']) &
@@ -57,80 +77,49 @@ for dedup_row in blanks.itertuples():
         (df['Time Raffinate (min)'] == add_me['Time Raffinate (min)'])
         ]
 
-    # can you write this to pass in parts of the data frame to the function, "Kd"? #
-    if not subset_me.empty:  # avoids issues with concat on an empty df
-        subset_me_len_index = len(list(subset_me.index))
+    if not measurements.empty:  # avoids issues with concat on an empty df
+
+        # setting up data frame of blank values to do operations #
+        subset_me_len_index = len(list(measurements.index))
         concat_list = []
         for x in range(subset_me_len_index):
             concat_list.append(blanks.loc[blank_index].to_frame().transpose())
+        # setting up data frame of blank values to do operations #
 
         blanks_for_operation = pd.concat(concat_list).reset_index().drop(['index'], axis=1)
-        subset_me_sub = subset_me.copy().reset_index().drop(['index'], axis=1)
+        measurements_copy = measurements.copy().reset_index().drop(['index'], axis=1)
 
-        Kd_df = subset_me_sub.copy()
-        Kd_df_2 = Kd_df.copy()
-        # print(np.asarray(Kd_df['Adsorbent Mass (mg)']))
+        Kd_df = get_Kd(blanks_for_operation.copy(), measurements_copy, measurements['Adsorbent Mass (mg)'].copy(),
+                       measurements['Brine volume (ml)'].copy(), cols_to_sub_mean_raffinate)
+        Kd_rename_columns = [c for c in df.columns if 'Raffinate (ppm) mean' in c]
+        Kd_df_add = Kd_df[filter_columns + Kd_rename_columns].copy()
+        for item in Kd_rename_columns:
+            new_item = item[:2].strip()
+            Kd_rename_columns[Kd_rename_columns.index(item)] = new_item + " Partition Coefficient"
+        Kd_df_add.columns = filter_columns + Kd_rename_columns
+        Kd_df_list.append(Kd_df_add)
 
-        try:
-            subset_me_sub[cols_to_sub_mean_raffinate] = blanks_for_operation[cols_to_sub_mean_raffinate] - \
-                                                  subset_me_sub[cols_to_sub_mean_raffinate]
-            subset_me_sub[cols_to_sub_mean_raffinate] = subset_me_sub[cols_to_sub_mean_raffinate].apply(lambda x:
-                                                            np.asarray(x) / (np.asarray(Kd_df['Adsorbent Mass (mg)'])
-                                                                        *1000*adsorbent_density))
-            Kd_df_2[cols_to_sub_mean_raffinate] = Kd_df[cols_to_sub_mean_raffinate].apply(lambda x:
-                                                            np.asarray(x) / (np.asarray(Kd_df['Brine volume (ml)'])))
-            subset_me_sub[cols_to_sub_mean_raffinate] = subset_me_sub[cols_to_sub_mean_raffinate] / Kd_df_2[cols_to_sub_mean_raffinate] #this gives you the partition coefficent
-
-            cols_to_sub_mean_raffinate_2 = [c for c in df.columns if 'Raffinate (ppm) mean' in c]
-            Kd_df_add = subset_me_sub[filter_columns + cols_to_sub_mean_raffinate_2].copy()
-
-            for item in cols_to_sub_mean_raffinate_2:
-                new_item = item[:2].strip()
-                cols_to_sub_mean_raffinate_2[cols_to_sub_mean_raffinate_2.index(item)] = new_item + " Parition Coefficient"
-            Kd_df_add.columns = filter_columns + cols_to_sub_mean_raffinate_2
-            add_me_2.append(Kd_df_add)
-        except KeyError:
-            print(subset_me_sub)
-            pass
-        # can you write this to pass in parts of the data frame to the function, "Kd"? #
+        Kd_df_error = get_Kd_error(blanks_for_operation.copy(), measurements_copy, cols_to_sub_mean_raffinate,
+                                   col_raffinate_error)
+        Kd_rename_error_columns = [c for c in df.columns if 'Raffinate (mmol) std' in c]
+        Kd_df_error_add = Kd_df_error[filter_columns + Kd_rename_error_columns].copy()
+        for item in Kd_rename_error_columns:
+            new_item = item[:2].strip()
+            Kd_rename_error_columns[Kd_rename_error_columns.index(item)] = new_item + " Partition error"
+        Kd_df_error_add.columns = filter_columns + Kd_rename_error_columns
+        Kd_df_error_list.append(Kd_df_error_add)
 
 
-    # print(subset_me_sub)
+pretty_df_Kd = pd.concat(Kd_df_list).reset_index().drop(['index'], axis=1)
+pretty_df_Kd_error = pd.concat(Kd_df_error_list).reset_index().drop(['index'], axis=1)
+pretty_df = pretty_df_Kd.merge(pretty_df_Kd_error, on=filter_columns)
 
-    # for row in subset_me.itertuples():
-    #
-    #     for filter_col in filter_columns:
-    #         add_me_2[filter_col] = row[get_index_of_col(df, filter_col)]
-
-
-            # for value in subset_me[cols_to_sub_mean].items():
-            #     length_value = len(value)
-            #     column_name = value[0]
-            #     column_values = value[1]
-            #     blank_row = dedup_row[get_index_of_col(df, column_name)]
-            #     if len(column_values) > 0:
-            #         for x in range(len(column_values)):
-            #             adsorbent_mass = list(subset_me['Adsorbent Mass (mg)'])[x]
-            #             brine_volume = list(subset_me['Brine volume (ml)'])[x]
-            #             for measurement in column_values:
-            #                 if 'Raffinate' in column_name:
-            #                     difference = blank_row - measurement
-            #                     # print(f'blank: {blank_row}\n sample value: {measurement} \n difference: {difference}')
-            #                     if measurement != 0:
-            #                         Kd = calculate_Kd(measurement, blank_row, adsorbent_mass, brine_volume)
-            #                         # print(Kd)
-
-            #                         add_me_2[column_name + ' Kd'] = Kd
-            #                 if 'Eluate' in column_name:
-            #                     difference = measurement - blank_row
-            #                     add_me_2[column_name + ' blank subtracted'] = difference
-
-    # pretty_results.append(add_me_2)
-
-# pretty_df = pd.DataFrame(pretty_results).set_index('Experiment ID')
-# pretty_df.head()
-pretty_df = pd.concat(add_me_2).reset_index().drop(['index'], axis=1)
+partition_coefficients = [c for c in pretty_df if 'Partition Coefficient' in c]
+partition_coefficients.pop(partition_coefficients.index('Nd Partition Coefficient'))
+pretty_df['Nd selectivity'] = pretty_df['Nd Partition Coefficient'].div(pretty_df[partition_coefficients].sum(axis=1))
 
 output_path = "/Users/leoparsons/Desktop/Aether_Biomachines/Experiments/ICP-OES/Kd_IX_Cycling_data_12.20.2024.csv"
 pretty_df.to_csv(output_path)
-print(f"average csv file written to: {output_path}")
+print(f"partition coefficient csv file written to: {output_path}")
+
+
