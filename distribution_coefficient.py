@@ -23,8 +23,10 @@ filter_columns = [
 pretty_results = []
 
 cols_to_sub_mean_raffinate = [c for c in df.columns if 'Raffinate (ppm) mean' in c or 'Raffinate (mmol) mean' in c]
-cols_to_sub_mean_eluate = [c for c in df.columns if 'Eluate (ppm) mean' in c or 'Eluate (mmol) mean' in c]
 col_raffinate_error = [c for c in df.columns if 'Raffinate (ppm) std' in c or 'Raffinate (mmol) std' in c]
+
+cols_to_sub_mean_eluate = [c for c in df.columns if 'Eluate (ppm) mean' in c or 'Eluate (mmol) mean' in c]
+cols_to_sub_mean_eluate_error = [c for c in df.columns if 'Eluate (ppm) std' in c or 'Eluate (mmol) std' in c]
 
 blanks = df[df['Adsorbent Code'] == 'Blank']
 samples = df[df['Adsorbent Code'] != 'Blank']
@@ -56,8 +58,24 @@ def get_Kd_error(b: pd.DataFrame, r: pd.DataFrame, columns_to_operate: list, err
     r_copy[error_to_operate] = (r_copy[error_to_operate]/measurements)**2
     return r
 
+def subtract_eluate_background(b: pd.DataFrame, e: pd.DataFrame, columns_to_operate: list):
+    """b: blank, e: eluate, columns_to_operate: list of column names you want to do operations on returns dataframe
+    with eluate blank subtracted for each ion"""
+    e_copy = e.copy()
+    e_copy[columns_to_operate] = e[columns_to_operate].sub(b[columns_to_operate])
+    return e_copy
+
+
+def get_eluate_subtraction_error(b: pd.DataFrame, e: pd.DataFrame, columns_to_operate: list):
+    e_copy = e.copy()
+    e_copy[columns_to_operate] = ((e_copy[columns_to_operate].mul(e_copy[columns_to_operate])) +
+                                  (b[columns_to_operate].mul(b[columns_to_operate])))**0.5
+    return e_copy
+
 Kd_df_list = []
 Kd_df_error_list = []
+eluate_list = []
+eluate_error_list = []
 for dedup_row in blanks.itertuples():
     blank_index = dedup_row[0]
     add_me = {}
@@ -105,14 +123,49 @@ for dedup_row in blanks.itertuples():
         Kd_df_error_add = Kd_df_error[filter_columns + Kd_rename_error_columns].copy()
         for item in Kd_rename_error_columns:
             new_item = item[:2].strip()
-            Kd_rename_error_columns[Kd_rename_error_columns.index(item)] = new_item + " Partition error"
+            Kd_rename_error_columns[Kd_rename_error_columns.index(item)] = new_item + ' Partition error'
         Kd_df_error_add.columns = filter_columns + Kd_rename_error_columns
         Kd_df_error_list.append(Kd_df_error_add)
+
+        eluate_background_subtract = subtract_eluate_background(blanks_for_operation.copy(), measurements_copy,
+                                                                cols_to_sub_mean_eluate)
+        cols_to_sub_mean_eluate_2 = cols_to_sub_mean_eluate.copy()
+        eluate_rename_columns_add = eluate_background_subtract[filter_columns + cols_to_sub_mean_eluate_2].copy()
+        for item in cols_to_sub_mean_eluate_2:
+            if '(ppm)' in item:
+                new_item = item[:2].strip()
+                cols_to_sub_mean_eluate_2[cols_to_sub_mean_eluate_2.index(item)] = new_item + ' Eluate (ppm) Blank Subtracted'
+            if '(mmol)' in item:
+                new_item = item[:2].strip()
+                cols_to_sub_mean_eluate_2[cols_to_sub_mean_eluate_2.index(item)] = new_item + ' Eluate (mmol) Blank Subtracted'
+        eluate_rename_columns_add.columns = filter_columns + cols_to_sub_mean_eluate_2
+        eluate_list.append(eluate_rename_columns_add)
+
+        eluate_background_subtract_error = get_eluate_subtraction_error(blanks_for_operation.copy(), measurements_copy,
+                                                                cols_to_sub_mean_eluate_error)
+        cols_to_sub_mean_eluate_error_2 = cols_to_sub_mean_eluate_error.copy()
+        eluate_error_rename_columns_add = eluate_background_subtract_error[filter_columns + cols_to_sub_mean_eluate_error_2].copy()
+        for item in cols_to_sub_mean_eluate_error_2:
+            if '(ppm)' in item:
+                new_item = item[:2].strip()
+                cols_to_sub_mean_eluate_error_2[
+                    cols_to_sub_mean_eluate_error_2.index(item)] = new_item + ' Eluate (ppm) Blank Subtracted std'
+            if '(mmol)' in item:
+                new_item = item[:2].strip()
+                cols_to_sub_mean_eluate_error_2[
+                    cols_to_sub_mean_eluate_error_2.index(item)] = new_item + ' Eluate (mmol) Blank Subtracted std'
+        eluate_error_rename_columns_add.columns = filter_columns + cols_to_sub_mean_eluate_error_2
+        eluate_error_list.append(eluate_error_rename_columns_add)
 
 
 pretty_df_Kd = pd.concat(Kd_df_list).reset_index().drop(['index'], axis=1)
 pretty_df_Kd_error = pd.concat(Kd_df_error_list).reset_index().drop(['index'], axis=1)
+pretty_df_eluate_background = pd.concat(eluate_list).reset_index().drop(['index'], axis=1)
+pretty_df_eluate_error = pd.concat(eluate_error_list).reset_index().drop(['index'], axis=1)
+
 pretty_df = pretty_df_Kd.merge(pretty_df_Kd_error, on=filter_columns)
+pretty_df = pretty_df.merge(pretty_df_eluate_background, on=filter_columns)
+pretty_df = pretty_df.merge(pretty_df_eluate_error, on=filter_columns)
 
 partition_coefficients = [c for c in pretty_df if 'Partition Coefficient' in c]
 partition_coefficients.pop(partition_coefficients.index('Nd Partition Coefficient'))
